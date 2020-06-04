@@ -14,4 +14,8 @@ dependencies {
     
     testCompile 'commons-io:commons-io:2.6'
     testCompile 'junit:junit:4.12'
+
+    // https://mvnrepository.com/artifact/javax.xml.ws/jaxws-api
+    // Required because it was removed in Java 11
+    compile group: 'javax.xml.ws', name: 'jaxws-api', version: '2.2.11'
 }
