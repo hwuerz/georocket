@@ -92,6 +92,16 @@ public class ImporterVerticle extends AbstractVerticle {
   }
 
   /**
+   * Get the path on the filesystem, where the incoming file described in the
+   * passed message body is stored.
+   * @param filename The filename of the incoming file.
+   * @return The path of the incoming file on the local filesystem.
+   */
+  protected String getIncomingFilePath(String filename) {
+    return incoming + "/" + filename;
+  }
+
+  /**
    * Receives a name of a file to import
    * @param msg the event bus message containing the filename
    * @return a Completable that will complete when the file has been imported
@@ -99,7 +109,7 @@ public class ImporterVerticle extends AbstractVerticle {
   protected Completable onImport(Message<JsonObject> msg) {
     JsonObject body = msg.body();
     String filename = body.getString("filename");
-    String filepath = incoming + "/" + filename;
+    String filepath = getIncomingFilePath(filename);
     String layer = body.getString("layer", "/");
     String contentType = body.getString("contentType");
     String correlationId = body.getString("correlationId");
