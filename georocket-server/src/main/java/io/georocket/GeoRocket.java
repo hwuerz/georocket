@@ -494,7 +494,9 @@ public class GeoRocket extends AbstractVerticle {
         ", max heap size: " + SizeFormat.format(memoryMax));
 
     // deploy main verticle
-    vertx.deployVerticle(GeoRocket.class.getName(), options, ar -> {
+    String startVerticle = options.getConfig()
+            .getString(ConfigConstants.START_VERTICLE, GeoRocket.class.getName());
+    vertx.deployVerticle(startVerticle, options, ar -> {
         if (ar.failed()) {
           log.fatal("Could not deploy GeoRocket");
           ar.cause().printStackTrace();

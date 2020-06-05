@@ -32,6 +32,7 @@ public final class ConfigConstants {
   public static final String HTTP_CORS_EXPOSE_HEADERS = "georocket.http.cors.exposeHeaders";
   public static final String HTTP_CORS_MAX_AGE = "georocket.http.cors.maxAge";
 
+  public static final String START_VERTICLE = "georocket.startVerticle";
   public static final String LOG_CONFIG = "georocket.logConfig";
 
   public static final String STORAGE_CLASS = "georocket.storage.class";
