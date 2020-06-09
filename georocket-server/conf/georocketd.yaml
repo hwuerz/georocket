@@ -60,6 +60,11 @@ georocket:
       forceSignatureV2: false
       requestExpirySeconds: 600
 
+  # Import configuration
+  import:
+    # The maximum number of points per chunk. (Only used for point clouds)
+    pointCloudChunkSize: 100000
+
   # Index configuration
   index:
     # The maximum number of chunks in insert in one bulk

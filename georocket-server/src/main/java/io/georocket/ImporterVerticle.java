@@ -7,10 +7,7 @@ import io.georocket.input.Splitter.Result;
 import io.georocket.input.geojson.GeoJsonSplitter;
 import io.georocket.input.xml.FirstLevelSplitter;
 import io.georocket.input.xml.XMLSplitter;
-import io.georocket.storage.ChunkMeta;
-import io.georocket.storage.IndexMeta;
-import io.georocket.storage.RxStore;
-import io.georocket.storage.StoreFactory;
+import io.georocket.storage.*;
 import io.georocket.tasks.ImportingTask;
 import io.georocket.tasks.TaskError;
 import io.georocket.util.JsonParserTransformer;
@@ -20,18 +17,27 @@ import io.georocket.util.UTF8BomFilter;
 import io.georocket.util.Window;
 import io.georocket.util.XMLParserTransformer;
 import io.georocket.util.io.RxGzipReadStream;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
+import io.vertx.core.Handler;
 import io.vertx.core.file.OpenOptions;
 import io.vertx.core.impl.NoStackTraceThrowable;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.rx.java.ObservableFuture;
+import io.vertx.rx.java.RxHelper;
 import io.vertx.rxjava.core.AbstractVerticle;
 import io.vertx.rxjava.core.buffer.Buffer;
 import io.vertx.rxjava.core.eventbus.Message;
 import io.vertx.rxjava.core.file.AsyncFile;
 import io.vertx.rxjava.core.file.FileSystem;
+import io.vertx.rxjava.core.streams.Pump;
 import io.vertx.rxjava.core.streams.ReadStream;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import rx.Completable;
 import rx.Observable;
 import rx.Single;
@@ -41,6 +47,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -58,11 +68,17 @@ public class ImporterVerticle extends AbstractVerticle {
   private static final int MAX_RETRIES = 5;
   private static final int RETRY_INTERVAL = 1000;
   private static final int MAX_PARALLEL_IMPORTS = 1;
+
+  /**
+   * If {@link ConfigConstants#IMPORT_POINT_CLOUD_CHUNK_SIZE} is not defined, this fallback chunk size will be used.
+   */
+  private static final int DEFAULT_IMPORT_POINT_CLOUD_CHUNK_SIZE = 100000;
   
   protected RxStore store;
   private String incoming;
   private boolean paused;
   private Set<AsyncFile> filesBeingImported = new HashSet<>();
+  private Lastools lastools; // Only required for the processing of point clouds.
 
   @Override
   public void start() {
@@ -71,6 +87,7 @@ public class ImporterVerticle extends AbstractVerticle {
     store = new RxStore(StoreFactory.createStore(getVertx()));
     String storagePath = config().getString(ConfigConstants.STORAGE_FILE_PATH);
     incoming = storagePath + "/incoming";
+    lastools = new Lastools(vertx.getDelegate());
     
     vertx.eventBus().<JsonObject>localConsumer(AddressConstants.IMPORTER_IMPORT)
       .toObservable()
@@ -202,6 +219,8 @@ public class ImporterVerticle extends AbstractVerticle {
         properties, fallbackCRSString);
     } else if (belongsTo(contentType, "application", "json")) {
       result = importJSON(f, correlationId, filename, timestamp, layer, tags, properties);
+    } else if (belongsTo(contentType, "application", "vnd.las")) {
+      result = importLas(f, correlationId, filename, timestamp, layer, tags, properties);
     } else {
       result = Observable.error(new NoStackTraceThrowable(String.format(
           "Received an unexpected content type '%s' while trying to import "
@@ -308,6 +327,117 @@ public class ImporterVerticle extends AbstractVerticle {
           return addToStoreWithPause(result, layer, indexMeta, f, processing)
               .toSingleDefault(1);
         });
+  }
+
+  /**
+   * Import a *.las or *.laz file from the given input stream into the store.
+   * Hint: laz is the lossless compression of las. Both can be handled.
+   * All imported chunks are stored as base64 encoded laz files.
+   * In a further version this might be changed to a binary format, but currently
+   * the store can only handle strings.
+   * @param f the JSON file to read.
+   * @param correlationId a unique identifier for this import process.
+   * @param filename the name of the file currently being imported.
+   * @param timestamp denotes when the import process has started.
+   * @param layer the layer where the file should be stored (may be null).
+   * @param tags the list of tags to attach to the file (may be null).
+   * @param properties the map of properties to attach to the file (may be null).
+   * @return an observable that will emit the number 1 when a chunk has been imported.
+   */
+  protected Observable<Integer> importLas(ReadStream<Buffer> f, String correlationId,
+      String filename, long timestamp, String layer, List<String> tags, Map<String, Object> properties) {
+
+    Integer configChunkSize = config().getInteger(ConfigConstants.IMPORT_POINT_CLOUD_CHUNK_SIZE);
+    int chunkSize = configChunkSize != null ? configChunkSize : DEFAULT_IMPORT_POINT_CLOUD_CHUNK_SIZE;
+
+    FileSystem fs = vertx.fileSystem();
+    try {
+      // LASTools requires the las or laz extension. Otherwise the files are parsed as xyz.
+      // The tmpFile contains the new input file in an uncompressed way.
+      // It does not matter if the extension is las or laz. Lastools will handle it correctly in any case.
+      String tmpFile = File.createTempFile(filename, ".las").getCanonicalPath();
+      // The tmpDirectory contains all generated chunks based on the input file.
+      String tmpDirectory = Files.createTempDirectory(filename).toFile().getCanonicalPath();
+      OpenOptions openOptions = new OpenOptions().setCreate(true).setWrite(true);
+      return fs.rxOpen(tmpFile, openOptions)
+              .toObservable()
+              .flatMap(file -> {
+                // Write the new data (f) to the tmp file (file). This will decompress it if required.
+                // Returns a pump observable for the coping.
+                ObservableFuture<Void> pumpObservable = RxHelper.observableFuture();
+                Handler<AsyncResult<Void>> pumpHandler = pumpObservable.toHandler();
+                Pump.pump(f, file).start();
+                Handler<Throwable> errHandler = (Throwable t) -> {
+                  f.endHandler(null);
+                  file.close();
+                  pumpHandler.handle(Future.failedFuture(t));
+                };
+                file.exceptionHandler(errHandler);
+                f.exceptionHandler(errHandler);
+                f.endHandler(v -> file.close(v2 -> pumpHandler.handle(Future.succeededFuture())));
+                f.resume();
+                return pumpObservable;
+              })
+              .flatMap(v -> {
+                // Apply the LASTools to the new file. Split it in chunks. Store the chunks in tmpDirectory.
+                log.debug("Apply LASTools to the tmpFile " + tmpFile);
+                ObservableFuture<Void> observable = RxHelper.observableFuture();
+                Handler<AsyncResult<Void>> handler = observable.toHandler();
+                lastools.lasmerge(tmpFile, tmpDirectory, chunkSize, handler);
+                return observable;
+              })
+              .flatMap(v -> {
+                // Get paths to the generated chunks.
+                File[] chunkFiles = new File(tmpDirectory).listFiles();
+                if (chunkFiles == null) {
+                  log.warn("No chunks created for " + filename);
+                  return Observable.empty();
+                }
+                log.info(chunkFiles.length + " chunks created for " + filename + " in " + tmpDirectory);
+                return Observable.from(chunkFiles);
+              })
+              .flatMapSingle(chunkFile -> {
+                // Store each chunk.
+                try {
+                  // The store can only handle string values.
+                  // We have to store the base64 encoding instead of the raw binary.
+                  // In a further version, the store should be extended ti support binary data.
+                  byte[] encoded = Base64.encodeBase64(FileUtils.readFileToByteArray(chunkFile));
+                  String chunk = new String(encoded, StandardCharsets.US_ASCII);
+
+                  IndexMeta indexMeta = new IndexMeta(correlationId, filename,
+                          timestamp, tags, properties, null);
+                  // Lastools creates the chunk files with an ascending number as filename.
+                  // We can use the name to identify the order of the chunk in the original file.
+                  String chunkNumberAsString = FilenameUtils.removeExtension(chunkFile.getName());
+                  int chunkNumber = Integer.parseInt(chunkNumberAsString);
+                  ChunkMeta meta = new LasChunkMeta(chunkNumber);
+
+                  return addToStore(chunk, meta, layer, indexMeta)
+                          .andThen(Completable.defer( () -> {
+                            chunkFile.deleteOnExit(); // Clean up the local chunk file. It is in the store now.
+                            return Completable.complete();
+                          }))
+                          .toSingleDefault(1);
+                } catch (IOException e) {
+                  log.error("Could not store chunk", e);
+                  return Single.error(e);
+                }
+              })
+              .doOnCompleted( () -> {
+                // Clean up: Delete tmp file and chunk directory.
+                try {
+                  new File(tmpFile).delete(); // The input file. Resulted from writing the ReadStream.
+                  FileUtils.deleteDirectory(new File(tmpDirectory)); // The chunk directory.
+                } catch (IOException e) {
+                  log.warn("The chunk tmp directory could not be deleted.", e);
+                }
+              });
+
+    } catch (IOException e) {
+      log.error("Can not create tmp file for LAS input", e);
+      return Observable.error(e);
+    }
   }
 
   /**

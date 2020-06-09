@@ -52,6 +52,8 @@ public final class ConfigConstants {
   public static final String STORAGE_S3_PATH_STYLE_ACCESS = "georocket.storage.s3.pathStyleAccess";
   public static final String STORAGE_S3_FORCE_SIGNATURE_V2 = "georocket.storage.s3.forceSignatureV2";
   public static final String STORAGE_S3_REQUEST_EXPIRY_SECONDS = "georocket.storage.s3.requestExpirySeconds";
+
+  public static final String IMPORT_POINT_CLOUD_CHUNK_SIZE = "georocket.import.pointCloudChunkSize";
   
   public static final String INDEX_MAX_BULK_SIZE = "georocket.index.maxBulkSize";
   public static final String INDEX_MAX_PARALLEL_INSERTS = "georocket.index.maxParallelInserts";

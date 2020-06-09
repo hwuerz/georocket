@@ -26,6 +26,13 @@ public class MimeTypeUtils {
   public static final String JSON = "application/json";
 
   /**
+   * Mime type for LAS (LASer File Format)
+   * This includes the compressed format LAZ.
+   * https://www.iana.org/assignments/media-types/application/vnd.las
+   */
+  public static final String LAS = "application/vnd.las";
+
+  /**
    * <p>Check if the given mime type belongs to another one.</p>
    * <p>Examples:</p>
    * <ul>
@@ -121,24 +128,38 @@ public class MimeTypeUtils {
    * @throws IOException if the input stream could not be read
    */
   private static String determineFileFormat(BufferedInputStream bis)
-      throws IOException {
-    int len = 1024 * 100;
-    
+          throws IOException {
+    int maxLen = 1024 * 100;
+    int len = 0;
+
     bis.mark(len);
     try {
+      int[] magicNumber = new int[4];
+      boolean onlyWhitespaceUntilNow = true;
       while (true) {
         int c = bis.read();
-        --len;
-        if (c < 0 || len < 2) {
+        ++len;
+        if (c < 0 || len >= maxLen - 2) {
           return null;
         }
-        
-        if (!Character.isWhitespace(c)) {
+
+        if (len <= 4) {
+          magicNumber[len - 1] = c;
+        }
+
+        if (!Character.isWhitespace(c) && onlyWhitespaceUntilNow) {
+          onlyWhitespaceUntilNow = false;
           if (c == '[' || c == '{') {
             return JSON;
           } else if (c == '<') {
             return XML;
           }
+        }
+        if (len == 4 && magicNumber[0] == 'L' && magicNumber[1] == 'A'
+                && magicNumber[2] == 'S' && magicNumber[3] == 'F') {
+          return LAS;
+        }
+        if (!onlyWhitespaceUntilNow && len >= 4) {
           return null;
         }
       }

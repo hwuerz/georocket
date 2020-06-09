@@ -12,23 +12,11 @@ import io.georocket.index.xml.MetaIndexerFactory;
 import io.georocket.index.xml.StreamIndexer;
 import io.georocket.index.xml.XMLIndexerFactory;
 import io.georocket.query.DefaultQueryCompiler;
-import io.georocket.storage.ChunkMeta;
-import io.georocket.storage.ChunkReadStream;
-import io.georocket.storage.GeoJsonChunkMeta;
-import io.georocket.storage.IndexMeta;
-import io.georocket.storage.JsonChunkMeta;
-import io.georocket.storage.RxStore;
-import io.georocket.storage.StoreFactory;
-import io.georocket.storage.XMLChunkMeta;
+import io.georocket.storage.*;
 import io.georocket.tasks.IndexingTask;
 import io.georocket.tasks.RemovingTask;
 import io.georocket.tasks.TaskError;
-import io.georocket.util.FilteredServiceLoader;
-import io.georocket.util.JsonParserTransformer;
-import io.georocket.util.MapUtils;
-import io.georocket.util.RxUtils;
-import io.georocket.util.StreamEvent;
-import io.georocket.util.XMLParserTransformer;
+import io.georocket.util.*;
 import io.georocket.util.io.DelegateChunkReadStream;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -51,10 +39,7 @@ import rx.Single;
 import rx.functions.Func1;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -498,6 +483,10 @@ public class IndexerVerticle extends AbstractVerticle {
         } else if (belongsTo(mimeType, "application", "json")) {
           factories = jsonIndexerFactories;
           parserTransformer = new JsonParserTransformer();
+        } else if (belongsTo(mimeType, "application", "vnd.las")) {
+          // TODO Add las tools to generate meta
+          factories = new LinkedList();
+          parserTransformer = new LasParserTransformer();
         } else {
           return Observable.error(new NoStackTraceThrowable(String.format(
               "Unexpected mime type '%s' while trying to index "
@@ -575,6 +564,8 @@ public class IndexerVerticle extends AbstractVerticle {
       return new GeoJsonChunkMeta(source);
     } else if (belongsTo(mimeType, "application", "json")) {
       return new JsonChunkMeta(source);
+    } else if (belongsTo(mimeType, "application", "vnd.las")) {
+      return new LasChunkMeta(source);
     } else {
       return new ChunkMeta(source);
     }
