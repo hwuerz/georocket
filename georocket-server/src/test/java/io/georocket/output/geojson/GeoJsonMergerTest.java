@@ -49,9 +49,10 @@ public class GeoJsonMergerTest {
       .flatMapCompletable(p -> m.merge(p.getLeft(), p.getRight(), bws))
       .toCompletable()
       .subscribe(() -> {
-        m.finish(bws);
-        context.assertEquals(jsonContents, bws.getBuffer().toString("utf-8"));
-        async.complete();
+        m.finish(bws).subscribe(() -> {
+          context.assertEquals(jsonContents, bws.getBuffer().toString("utf-8"));
+          async.complete();
+        }, context::fail);
       }, context::fail);
   }
   
@@ -343,9 +344,10 @@ public class GeoJsonMergerTest {
       .andThen(m.merge(new DelegateChunkReadStream(chunk2), cm2, bws))
       .andThen(m.merge(new DelegateChunkReadStream(chunk3), cm3, bws))
       .subscribe(() -> {
-        m.finish(bws);
-        context.assertEquals(jsonContents, bws.getBuffer().toString("utf-8"));
-        async.complete();
+        m.finish(bws).subscribe(() -> {
+          context.assertEquals(jsonContents, bws.getBuffer().toString("utf-8"));
+          async.complete();
+        }, context::fail);
       }, context::fail);
   }
 }

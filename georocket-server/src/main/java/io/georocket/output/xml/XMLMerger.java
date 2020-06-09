@@ -99,7 +99,7 @@ public class XMLMerger implements Merger<XMLChunkMeta> {
   }
   
   @Override
-  public void finish(WriteStream<Buffer> out) {
-    strategy.finish(out);
+  public Completable finish(WriteStream<Buffer> out) {
+    return strategy.finish(out);
   }
 }

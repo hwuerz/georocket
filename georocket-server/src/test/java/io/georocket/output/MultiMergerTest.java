@@ -37,7 +37,7 @@ public class MultiMergerTest {
   
   private void doMerge(TestContext context, Observable<Buffer> chunks,
       Observable<ChunkMeta> metas, String jsonContents) {
-    MultiMerger m = new MultiMerger(false);
+    MultiMerger m = new MultiMerger(false, rule.vertx());
     BufferWriteStream bws = new BufferWriteStream();
     Async async = context.async();
     metas
@@ -48,9 +48,10 @@ public class MultiMergerTest {
       .flatMapCompletable(p -> m.merge(p.getLeft(), p.getRight(), bws))
       .toCompletable()
       .subscribe(() -> {
-        m.finish(bws);
-        context.assertEquals(jsonContents, bws.getBuffer().toString("utf-8"));
-        async.complete();
+        m.finish(bws).subscribe(() -> {
+          context.assertEquals(jsonContents, bws.getBuffer().toString("utf-8"));
+          async.complete();
+        }, context::fail);
       }, context::fail);
   }
   
@@ -111,7 +112,7 @@ public class MultiMergerTest {
     XMLChunkMeta cm2 = new XMLChunkMeta(Arrays.asList(new XMLStartElement("root")),
       XMLHEADER.length() + 6, chunk2.length() - 7);
     
-    MultiMerger m = new MultiMerger(false);
+    MultiMerger m = new MultiMerger(false, rule.vertx());
     Async async = context.async();
     m.init(cm1)
       .andThen(m.init(cm2))
@@ -136,7 +137,7 @@ public class MultiMergerTest {
     XMLChunkMeta cm2 = new XMLChunkMeta(Arrays.asList(new XMLStartElement("root")),
       XMLHEADER.length() + 6, chunk2.length() - 7);
     
-    MultiMerger m = new MultiMerger(false);
+    MultiMerger m = new MultiMerger(false, rule.vertx());
     BufferWriteStream bws = new BufferWriteStream();
     Async async = context.async();
     m.init(cm1)

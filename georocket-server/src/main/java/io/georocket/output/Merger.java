@@ -45,7 +45,7 @@ public interface Merger<T extends ChunkMeta> {
    * Finishes merging chunks
    * @param out the stream to write the merged result to
    */
-  void finish(WriteStream<Buffer> out);
+  Completable finish(WriteStream<Buffer> out);
   
   /**
    * Write a chunk unchanged to an output stream without doing further checks

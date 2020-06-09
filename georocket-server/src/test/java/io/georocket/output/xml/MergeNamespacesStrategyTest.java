@@ -13,6 +13,8 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import rx.Completable;
+import rx.Single;
 
 /**
  * Test {@link MergeNamespacesStrategy}
@@ -66,7 +68,7 @@ public class MergeNamespacesStrategyTest {
       .andThen(strategy.init(META2))
       .andThen(strategy.merge(new DelegateChunkReadStream(CHUNK1), META1, bws))
       .andThen(strategy.merge(new DelegateChunkReadStream(CHUNK2), META2, bws))
-      .doOnCompleted(() -> strategy.finish(bws))
+      .andThen(Completable.defer(() -> strategy.finish(bws)))
       .subscribe(() -> {
         context.assertEquals(XMLHEADER + EXPECTEDROOT + CONTENTS1 + CONTENTS2 +
             "</" + EXPECTEDROOT.getName() + ">", bws.getBuffer().toString("utf-8"));

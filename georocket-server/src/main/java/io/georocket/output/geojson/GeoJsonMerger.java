@@ -126,9 +126,10 @@ public class GeoJsonMerger implements Merger<GeoJsonChunkMeta> {
   }
 
   @Override
-  public void finish(WriteStream<Buffer> out) {
+  public Completable finish(WriteStream<Buffer> out) {
     if (mergedType == FEATURE_COLLECTION || mergedType == GEOMETRY_COLLECTION) {
       out.write(Buffer.buffer("]}"));
     }
+    return Completable.complete();
   }
 }

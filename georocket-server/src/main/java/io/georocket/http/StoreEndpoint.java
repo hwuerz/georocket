@@ -115,7 +115,7 @@ public class StoreEndpoint implements Endpoint {
    */
   protected Merger<ChunkMeta> createMerger(RoutingContext ctx,
       boolean optimisticMerging) {
-    return new MultiMerger(optimisticMerging);
+    return new MultiMerger(optimisticMerging, vertx);
   }
 
   /**
@@ -182,8 +182,7 @@ public class StoreEndpoint implements Endpoint {
           out.putTrailer(TRAILER_UNMERGED_CHUNKS, String.valueOf(notaccepted));
         }
         if (count > 0) {
-          merger.finish(out);
-          return Completable.complete();
+          return merger.finish(out);
         } else {
           return Completable.error(new FileNotFoundException("Not Found"));
         }

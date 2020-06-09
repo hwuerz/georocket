@@ -94,11 +94,12 @@ public abstract class AbstractMergeStrategy implements MergeStrategy {
   }
   
   @Override
-  public void finish(WriteStream<Buffer> out) {
+  public Completable finish(WriteStream<Buffer> out) {
     // close all parent elements
     for (int i = parents.size() - 1; i >= 0; --i) {
       XMLStartElement e = parents.get(i);
       out.write(Buffer.buffer("</" + e.getName() + ">"));
     }
+    return Completable.complete();
   }
 }

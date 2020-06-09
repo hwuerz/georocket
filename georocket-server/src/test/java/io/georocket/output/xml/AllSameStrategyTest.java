@@ -13,6 +13,7 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import rx.Completable;
 
 /**
  * Test {@link AllSameStrategy}
@@ -40,7 +41,7 @@ public class AllSameStrategyTest {
       .andThen(strategy.init(cm))
       .andThen(strategy.merge(new DelegateChunkReadStream(chunk1), cm, bws))
       .andThen(strategy.merge(new DelegateChunkReadStream(chunk2), cm, bws))
-      .doOnCompleted(() -> strategy.finish(bws))
+      .andThen(Completable.defer(() -> strategy.finish(bws)))
       .subscribe(() -> {
         context.assertEquals(XMLHEADER + "<root><test chunk=\"1\"></test><test chunk=\"2\"></test></root>",
             bws.getBuffer().toString("utf-8"));
@@ -61,7 +62,7 @@ public class AllSameStrategyTest {
       // skip second init
       .andThen(strategy.merge(new DelegateChunkReadStream(chunk1), cm, bws))
       .andThen(strategy.merge(new DelegateChunkReadStream(chunk2), cm, bws))
-      .doOnCompleted(() -> strategy.finish(bws))
+      .andThen(Completable.defer(() -> strategy.finish(bws)))
       .subscribe(() -> {
         context.assertEquals(XMLHEADER + "<root><test chunk=\"1\"></test><test chunk=\"2\"></test></root>",
             bws.getBuffer().toString("utf-8"));

@@ -80,8 +80,9 @@ public class XMLMergerTest {
         if (expected != null) {
           context.fail("Expected: " + expected.getName());
         } else {
-          m.finish(bws);
-          context.assertEquals(XMLHEADER + xmlContents, bws.getBuffer().toString("utf-8"));
+          m.finish(bws).subscribe(() -> {
+            context.assertEquals(XMLHEADER + xmlContents, bws.getBuffer().toString("utf-8"));
+          }, context::fail);
         }
         async.complete();
       }, e -> {
