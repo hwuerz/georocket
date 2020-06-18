@@ -1,6 +1,5 @@
 package io.georocket.util;
 
-import io.georocket.constants.ConfigConstants;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -9,18 +8,13 @@ import io.vertx.core.file.FileSystem;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.exec.*;
-import org.apache.commons.lang.SystemUtils;
+import org.apache.commons.lang3.SystemUtils;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Wrapper around the command line application LAStools.
@@ -32,18 +26,26 @@ public class Lastools {
   private static final Logger log = LoggerFactory.getLogger(Lastools.class);
 
   private final Vertx vertx;
+
+  /**
+   * The absolute, system dependent path to the lasmerge executable.
+   */
   private final String lasmergeExecutable;
+
+  /**
+   * The absolute, system dependent path to the lasinfo executable.
+   */
   private final String lasinfoExecutable;
 
   /**
    * Creates a new instance of the Lastools wrapper.
    * @param vertx The vertx object to get the GeoRocket home directory.
    *              The Lastools are installed relative to this dir, so it is required to find the executable.
+   * @param home  The GeoRocket home directory. The LAStools installation is searched relative to this location.
    * @throws RuntimeException If the lastools executables could not be found.
    */
-  public Lastools(Vertx vertx) {
+  public Lastools(Vertx vertx, String home) {
     this.vertx = vertx;
-    String home = vertx.getOrCreateContext().config().getString(ConfigConstants.HOME);
     lasmergeExecutable = getAbsolutePathToExecutable(home, Lastools::getLasmergeExecutable);
     lasinfoExecutable = getAbsolutePathToExecutable(home, Lastools::getLasinfoExecutable);
   }
@@ -59,8 +61,12 @@ public class Lastools {
   private static String getAbsolutePathToExecutable(String georocketHome, Function<String, String> binarySelector) {
     String[] possibleLasHomeDirs = new String[] {
             georocketHome + "/LAStools", // Run the built version.
-            georocketHome + "/../georocket/georocket-server/LAStools" // Run from an extension in the IDE.
+            georocketHome + "/../georocket/georocket-common/LAStools", // Run from an extension in the IDE.
+            georocketHome + "/../georocket-common/LAStools" // Run from another package.
     };
+    if (georocketHome == null) {
+      log.error("Lastools is called with null as georocket home ", new RuntimeException());
+    }
     return Arrays.stream(possibleLasHomeDirs)
             .map(binarySelector)
             .filter(executable -> new File(executable).exists())
@@ -173,109 +179,6 @@ public class Lastools {
     } catch (IOException | RuntimeException e) {
       log.error("Propagate LAStools exception", e);
       handler.handle(Future.failedFuture(e));
-    }
-  }
-
-  /**
-   * Java Object to store the las meta infos that are extracted from lasinfo.
-   */
-  static class Lasinfo {
-    /**
-     * Helper class to pass a primitive value by reference to other methods.
-     * @param <T> The type of the stored value.
-     */
-    static class MutableWrapper<T> {
-      private T value = null;
-      private final String contentHint;
-      private MutableWrapper(String contentHint) {
-        this.contentHint = contentHint;
-      }
-      public T get() {
-        return value;
-      }
-      private void set(T newValue) {
-        if (value != null) {
-          log.warn("Overwrite " + contentHint + " Old value: " + value + " New value: " + newValue);
-        }
-        value = newValue;
-      }
-    }
-
-    // All available meta infos.
-    MutableWrapper<Double>
-            minX = new MutableWrapper<>("minX"),
-            minY = new MutableWrapper<>("minY"),
-            minZ = new MutableWrapper<>("minZ"),
-            maxX = new MutableWrapper<>("maxX"),
-            maxY = new MutableWrapper<>("maxY"),
-            maxZ = new MutableWrapper<>("maxZ");
-    MutableWrapper<String> crs = new MutableWrapper<>("crs");
-    HashSet<Integer> classification = new HashSet<>();
-
-    /**
-     * Copy the meta infos from a lasinfo output file to this object.
-     * @param pathToInfoFile The path to the lasinfo output file.
-     */
-    public Lasinfo(String pathToInfoFile) {
-      // Regex patterns. They are applied on each line. If they match, the infos are copied.
-      Pattern boundingBoxXPattern = Pattern.compile("^\\s+X\\s+(\\d+)\\s+(\\d+)\\s*$");
-      Pattern boundingBoxYPattern = Pattern.compile("^\\s+Y\\s+(\\d+)\\s+(\\d+)\\s*$");
-      Pattern boundingBoxZPattern = Pattern.compile("^\\s+Z\\s+(\\d+)\\s+(\\d+)\\s*$");
-      Pattern crsPattern = Pattern.compile("^\\s+.*ProjectedCSTypeGeoKey: (.+)$");
-      Pattern beginClassificationPattern = Pattern.compile("^histogram of classification of points:$");
-      Pattern classificationPattern = Pattern.compile("^\\s+(\\d+)\\s+.+\\((\\d+)\\)\\s*$");
-      boolean captureClassification = false;
-
-      try {
-        List<String> lines = Files.readAllLines(new File(pathToInfoFile).toPath());
-        for (String line : lines) {
-          applyPattern(line, boundingBoxXPattern, Double::parseDouble, minX, maxX);
-          applyPattern(line, boundingBoxYPattern, Double::parseDouble, minY, maxY);
-          applyPattern(line, boundingBoxZPattern, Double::parseDouble, minZ, maxZ);
-          applyPattern(line, crsPattern, Function.identity(), crs);
-
-          // The classifications are listed in a part like this one:
-          // histogram of classification of points:
-          //          361219  unclassified (1)
-          //         5857112  ground (2)
-          //              70  water (9)
-          //          430321  Reserved for ASPRS Definition (20)
-          // --> We need to find the header line and capture the class indices (number in brackets) afterwards.
-          if (!captureClassification) {
-            Matcher matcher = beginClassificationPattern.matcher(line);
-            captureClassification = matcher.matches();
-          } else {
-            Matcher matcher = classificationPattern.matcher(line);
-            if (matcher.matches()) {
-              int classificationIndex = Integer.parseInt(matcher.group(2)); // group(1) is the amount of points in this group.
-              classification.add(classificationIndex);
-            }
-          }
-        }
-      } catch (IOException e) {
-        log.error("Could not read lasinfo output file at " + pathToInfoFile, e);
-      }
-    }
-
-    /**
-     * Applies the passed pattern on the passed line.
-     * If it is successful, the passed converter converts each group value to the required type.
-     * Each converted group value is stored in a passed values variable.
-     * There have to be as many groups in the pattern as values variables are passed.
-     * @param line The current line in the lasinfo output file.
-     * @param pattern A regex pattern to be applied on the current line.
-     * @param converter A converter function from String to the required group type.
-     * @param values A list of values to store the converted group values.
-     * @param <T> The type of the groups. All groups have to have the same type.
-     */
-    @SafeVarargs
-    private final <T> void applyPattern(String line, Pattern pattern, Function<String, T> converter, MutableWrapper<T>... values) {
-      Matcher matcher = pattern.matcher(line);
-      if (matcher.matches()) {
-        for (int i = 0; i < values.length; i++) {
-          values[i].set(converter.apply(matcher.group(i + 1)));
-        }
-      }
     }
   }
 

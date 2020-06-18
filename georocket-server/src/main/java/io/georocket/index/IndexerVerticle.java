@@ -6,17 +6,14 @@ import io.georocket.constants.ConfigConstants;
 import io.georocket.index.elasticsearch.ElasticsearchClient;
 import io.georocket.index.elasticsearch.ElasticsearchClientFactory;
 import io.georocket.index.generic.DefaultMetaIndexerFactory;
-import io.georocket.index.xml.JsonIndexerFactory;
-import io.georocket.index.xml.MetaIndexer;
-import io.georocket.index.xml.MetaIndexerFactory;
-import io.georocket.index.xml.StreamIndexer;
-import io.georocket.index.xml.XMLIndexerFactory;
+import io.georocket.index.xml.*;
 import io.georocket.query.DefaultQueryCompiler;
 import io.georocket.storage.*;
 import io.georocket.tasks.IndexingTask;
 import io.georocket.tasks.RemovingTask;
 import io.georocket.tasks.TaskError;
 import io.georocket.util.*;
+import io.georocket.util.io.DelegateBase64ChunkReadStream;
 import io.georocket.util.io.DelegateChunkReadStream;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -39,7 +36,10 @@ import rx.Single;
 import rx.functions.Func1;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -103,6 +103,12 @@ public class IndexerVerticle extends AbstractVerticle {
 
   /**
    * A view on {@link #indexerFactories} containing only
+   * {@link LasIndexerFactory} objects
+   */
+  private List<LasIndexerFactory> lasIndexerFactories;
+
+  /**
+   * A view on {@link #indexerFactories} containing only
    * {@link MetaIndexerFactory} objects
    */
   private List<MetaIndexerFactory> metaIndexerFactories;
@@ -125,6 +131,12 @@ public class IndexerVerticle extends AbstractVerticle {
    * half of the queued chunks have been indexed.
    */
   private int maxQueuedChunks;
+
+  /**
+   * The home directory. Used to access lastools.
+   * Set during start() because the vertx config is not available in an observable retry..
+   */
+  private String georocketHome;
   
   /**
    * The number of add message currently queued due to backpressure
@@ -146,7 +158,8 @@ public class IndexerVerticle extends AbstractVerticle {
     maxParallelInserts = config().getInteger(ConfigConstants.INDEX_MAX_PARALLEL_INSERTS,
         ConfigConstants.DEFAULT_INDEX_MAX_PARALLEL_INSERTS);
     maxQueuedChunks = config().getInteger(ConfigConstants.INDEX_MAX_QUEUED_CHUNKS,
-        ConfigConstants.DEFAULT_INDEX_MAX_QUEUED_CHUNKS);
+            ConfigConstants.DEFAULT_INDEX_MAX_QUEUED_CHUNKS);
+    georocketHome = config().getString(ConfigConstants.HOME, ".");
     
     // load and copy all indexer factories now and not lazily to avoid
     // concurrent modifications to the service loader's internal cache
@@ -157,6 +170,9 @@ public class IndexerVerticle extends AbstractVerticle {
     jsonIndexerFactories = ImmutableList.copyOf(Seq.seq(indexerFactories)
       .filter(f -> f instanceof JsonIndexerFactory)
       .cast(JsonIndexerFactory.class));
+    lasIndexerFactories = ImmutableList.copyOf(Seq.seq(indexerFactories)
+      .filter(f -> f instanceof LasIndexerFactory)
+      .cast(LasIndexerFactory.class));
     metaIndexerFactories = ImmutableList.copyOf(Seq.seq(indexerFactories)
       .filter(f -> f instanceof MetaIndexerFactory)
       .cast(MetaIndexerFactory.class));
@@ -484,9 +500,10 @@ public class IndexerVerticle extends AbstractVerticle {
           factories = jsonIndexerFactories;
           parserTransformer = new JsonParserTransformer();
         } else if (belongsTo(mimeType, "application", "vnd.las")) {
-          // TODO Add las tools to generate meta
-          factories = new LinkedList();
-          parserTransformer = new LasParserTransformer();
+          factories = lasIndexerFactories;
+          parserTransformer = new LasParserTransformer(vertx.getDelegate(), georocketHome);
+          // LAS chunks are base64 encoded. Wrap the stream to decode it on the fly.
+          chunk = new DelegateBase64ChunkReadStream(chunk);
         } else {
           return Observable.error(new NoStackTraceThrowable(String.format(
               "Unexpected mime type '%s' while trying to index "

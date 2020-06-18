@@ -1,10 +1,9 @@
 package io.georocket.output.las;
 
-import io.georocket.Lastools;
-import io.georocket.http.StoreEndpoint;
+import io.georocket.constants.ConfigConstants;
+import io.georocket.util.Lastools;
 import io.georocket.output.Merger;
 import io.georocket.storage.ChunkReadStream;
-import io.georocket.storage.GeoJsonChunkMeta;
 import io.georocket.storage.LasChunkMeta;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -19,7 +18,6 @@ import io.vertx.core.streams.WriteStream;
 import io.vertx.rx.java.ObservableFuture;
 import io.vertx.rx.java.RxHelper;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.io.FileUtils;
 import rx.Completable;
 
 import java.io.File;
@@ -61,7 +59,8 @@ public class LasMerger implements Merger<LasChunkMeta> {
   public LasMerger(Vertx vertx) {
       this.vertx = vertx;
       chunkDirectory = vertx.fileSystem().createTempDirectoryBlocking("chunksToMerge", "rwxrwxrwx");
-      lastools = new Lastools(vertx);
+      String georocketHome = vertx.getOrCreateContext().config().getString(ConfigConstants.HOME);
+      lastools = new Lastools(vertx, georocketHome);
   }
 
   @Override

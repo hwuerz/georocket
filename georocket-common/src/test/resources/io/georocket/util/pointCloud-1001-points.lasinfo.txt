@@ -1,0 +1,56 @@
+lasinfo (200509) report for '/tmp/test-resources/pointCloud-1001-points.laz'
+reporting all LAS header entries:
+  file signature:             'LASF'
+  file source ID:             0
+  global_encoding:            0
+  project ID GUID data 1-4:   00000000-0000-0000-0000-000000000000
+  version major.minor:        1.2
+  system identifier:          'LAStools (c) by rapidlasso GmbH'
+  generating software:        'lasmerge (version 200509)'
+  file creation day/year:     293/2016
+  header size:                227
+  offset to point data:       329
+  number var. length records: 1
+  point data format:          1
+  point data record length:   28
+  number of point records:    1001
+  number of points by return: 999 2 0 0 0
+  scale factor x y z:         0.01 0.01 0.01
+  offset x y z:               0 5000000 0
+  min x y z:                  360369.96 5613040.02 164.68
+  max x y z:                  360378.33 5613059.99 165.24
+variable length header record 1 of 1:
+  reserved             0
+  user ID              'LASF_Projection'
+  record ID            34735
+  length after header  48
+  description          'by LAStools of rapidlasso GmbH'
+    GeoKeyDirectoryTag version 1.1.0 number of keys 5
+      key 1024 tiff_tag_location 0 count 1 value_offset 1 - GTModelTypeGeoKey: ModelTypeProjected
+      key 3072 tiff_tag_location 0 count 1 value_offset 25832 - ProjectedCSTypeGeoKey: ETRS89 / UTM 32N
+      key 3076 tiff_tag_location 0 count 1 value_offset 9001 - ProjLinearUnitsGeoKey: Linear_Meter
+      key 4099 tiff_tag_location 0 count 1 value_offset 9001 - VerticalUnitsGeoKey: Linear_Meter
+      key 4096 tiff_tag_location 0 count 1 value_offset 7837 - VerticalCSTypeGeoKey: Deutsches Haupthoehennetz 2016
+LASzip compression (version 3.4r3 c2 50000): POINT10 2 GPSTIME11 2
+LAStiling (idx 0, lvl 0, sub 6, bbox 359860 5612860 361140 5614140) (size 1280 x 1280, buffer 0)
+reporting minimum and maximum for all LAS point record entries ...
+  X            36036996   36037833
+  Y            61304002   61305999
+  Z               16468      16524
+  intensity           0          0
+  return_number       1          2
+  number_of_returns   1          2
+  edge_of_flight_line 0          0
+  scan_direction_flag 0          0
+  classification      2          2
+  scan_angle_rank     0          0
+  user_data           0          0
+  point_source_ID     0          0
+  gps_time 0.000000 0.000000
+number of first returns:        999
+number of intermediate returns: 0
+number of last returns:         1001
+number of single returns:       999
+overview over number of returns of given pulse: 999 2 0 0 0 0 0
+histogram of classification of points:
+            1001  ground (2)

@@ -10,12 +10,7 @@ import io.georocket.input.xml.XMLSplitter;
 import io.georocket.storage.*;
 import io.georocket.tasks.ImportingTask;
 import io.georocket.tasks.TaskError;
-import io.georocket.util.JsonParserTransformer;
-import io.georocket.util.RxUtils;
-import io.georocket.util.StringWindow;
-import io.georocket.util.UTF8BomFilter;
-import io.georocket.util.Window;
-import io.georocket.util.XMLParserTransformer;
+import io.georocket.util.*;
 import io.georocket.util.io.RxGzipReadStream;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -87,7 +82,8 @@ public class ImporterVerticle extends AbstractVerticle {
     store = new RxStore(StoreFactory.createStore(getVertx()));
     String storagePath = config().getString(ConfigConstants.STORAGE_FILE_PATH);
     incoming = storagePath + "/incoming";
-    lastools = new Lastools(vertx.getDelegate());
+    String georocketHome = vertx.getOrCreateContext().config().getString(ConfigConstants.HOME);
+    lastools = new Lastools(vertx.getDelegate(), georocketHome);
     
     vertx.eventBus().<JsonObject>localConsumer(AddressConstants.IMPORTER_IMPORT)
       .toObservable()
