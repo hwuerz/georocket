@@ -3,7 +3,13 @@ package io.georocket.storage.indexed;
 import static io.georocket.util.MimeTypeUtils.belongsTo;
 
 import io.georocket.constants.AddressConstants;
-import io.georocket.storage.*;
+import io.georocket.storage.ChunkMeta;
+import io.georocket.storage.CursorInfo;
+import io.georocket.storage.GeoJsonChunkMeta;
+import io.georocket.storage.JsonChunkMeta;
+import io.georocket.storage.LasChunkMeta;
+import io.georocket.storage.StoreCursor;
+import io.georocket.storage.XMLChunkMeta;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;

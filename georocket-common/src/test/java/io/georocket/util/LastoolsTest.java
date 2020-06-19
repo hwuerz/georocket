@@ -12,9 +12,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.net.URL;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Test {@link Lastools}

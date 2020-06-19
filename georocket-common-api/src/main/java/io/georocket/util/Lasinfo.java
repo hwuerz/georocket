@@ -43,7 +43,7 @@ public class Lasinfo {
     public boolean equals(Object obj) {
       if (this == obj) return true;
       if (obj == null || getClass() != obj.getClass()) return false;
-      MutableWrapper<?> mutableWrapper = (MutableWrapper<?>) obj;
+      MutableWrapper<?> mutableWrapper = (MutableWrapper<?>)obj;
       if (value == null && mutableWrapper.value == null) return true;
       if (value == null) return false;
       return value.equals(mutableWrapper.value);
@@ -167,7 +167,7 @@ public class Lasinfo {
   public boolean equals(Object o) {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
-    Lasinfo lasinfo = (Lasinfo) o;
+    Lasinfo lasinfo = (Lasinfo)o;
     return Objects.equals(minX, lasinfo.minX) &&
             Objects.equals(minY, lasinfo.minY) &&
             Objects.equals(minZ, lasinfo.minZ) &&

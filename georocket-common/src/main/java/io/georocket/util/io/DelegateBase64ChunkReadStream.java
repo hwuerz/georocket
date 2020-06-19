@@ -4,8 +4,6 @@ import io.georocket.storage.ChunkReadStream;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.streams.ReadStream;
 
 /**
  * A simple read stream for base64 chunks.

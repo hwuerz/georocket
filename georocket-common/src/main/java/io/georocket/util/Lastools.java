@@ -7,7 +7,13 @@ import io.vertx.core.Vertx;
 import io.vertx.core.file.FileSystem;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import org.apache.commons.exec.*;
+import org.apache.commons.exec.CommandLine;
+import org.apache.commons.exec.DefaultExecuteResultHandler;
+import org.apache.commons.exec.DefaultExecutor;
+import org.apache.commons.exec.ExecuteException;
+import org.apache.commons.exec.ExecuteWatchdog;
+import org.apache.commons.exec.Executor;
+import org.apache.commons.exec.ShutdownHookProcessDestroyer;
 import org.apache.commons.lang3.SystemUtils;
 
 import java.io.File;
@@ -73,7 +79,7 @@ public class Lastools {
             .findAny()
             .orElseThrow(() -> new RuntimeException("LAStools are not installed. " +
                     binarySelector.apply("") + " not found. Tried " +
-                    String.join(" ", possibleLasHomeDirs)) );
+                    String.join(" ", possibleLasHomeDirs)));
   }
 
   private static String getLasmergeExecutable(String lasHome) {

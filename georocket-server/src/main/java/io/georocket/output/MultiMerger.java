@@ -3,7 +3,12 @@ package io.georocket.output;
 import io.georocket.output.geojson.GeoJsonMerger;
 import io.georocket.output.las.LasMerger;
 import io.georocket.output.xml.XMLMerger;
-import io.georocket.storage.*;
+import io.georocket.storage.ChunkMeta;
+import io.georocket.storage.ChunkReadStream;
+import io.georocket.storage.GeoJsonChunkMeta;
+import io.georocket.storage.JsonChunkMeta;
+import io.georocket.storage.LasChunkMeta;
+import io.georocket.storage.XMLChunkMeta;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.streams.WriteStream;
@@ -81,7 +86,7 @@ public class MultiMerger implements Merger<ChunkMeta> {
         } else if (meta instanceof GeoJsonChunkMeta) {
           return geoJsonMerger.init((GeoJsonChunkMeta)meta);
         }
-        return lasMerger.init((LasChunkMeta) meta);
+        return lasMerger.init((LasChunkMeta)meta);
       }));
   }
 

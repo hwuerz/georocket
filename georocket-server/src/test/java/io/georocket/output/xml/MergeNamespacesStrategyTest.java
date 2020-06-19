@@ -14,7 +14,6 @@ import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import rx.Completable;
-import rx.Single;
 
 /**
  * Test {@link MergeNamespacesStrategy}

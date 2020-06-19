@@ -7,10 +7,20 @@ import io.georocket.input.Splitter.Result;
 import io.georocket.input.geojson.GeoJsonSplitter;
 import io.georocket.input.xml.FirstLevelSplitter;
 import io.georocket.input.xml.XMLSplitter;
-import io.georocket.storage.*;
+import io.georocket.storage.ChunkMeta;
+import io.georocket.storage.IndexMeta;
+import io.georocket.storage.LasChunkMeta;
+import io.georocket.storage.RxStore;
+import io.georocket.storage.StoreFactory;
 import io.georocket.tasks.ImportingTask;
 import io.georocket.tasks.TaskError;
-import io.georocket.util.*;
+import io.georocket.util.JsonParserTransformer;
+import io.georocket.util.Lastools;
+import io.georocket.util.RxUtils;
+import io.georocket.util.StringWindow;
+import io.georocket.util.UTF8BomFilter;
+import io.georocket.util.Window;
+import io.georocket.util.XMLParserTransformer;
 import io.georocket.util.io.RxGzipReadStream;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -410,7 +420,7 @@ public class ImporterVerticle extends AbstractVerticle {
                   ChunkMeta meta = new LasChunkMeta(chunkNumber);
 
                   return addToStore(chunk, meta, layer, indexMeta)
-                          .andThen(Completable.defer( () -> {
+                          .andThen(Completable.defer(() -> {
                             chunkFile.deleteOnExit(); // Clean up the local chunk file. It is in the store now.
                             return Completable.complete();
                           }))
@@ -420,7 +430,7 @@ public class ImporterVerticle extends AbstractVerticle {
                   return Single.error(e);
                 }
               })
-              .doOnCompleted( () -> {
+              .doOnCompleted(() -> {
                 // Clean up: Delete tmp file and chunk directory.
                 try {
                   new File(tmpFile).delete(); // The input file. Resulted from writing the ReadStream.
