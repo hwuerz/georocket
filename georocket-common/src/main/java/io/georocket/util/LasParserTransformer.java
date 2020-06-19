@@ -5,6 +5,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.file.AsyncFile;
+import io.vertx.core.file.FileSystem;
 import io.vertx.core.file.OpenOptions;
 import io.vertx.core.streams.Pump;
 import io.vertx.core.streams.ReadStream;
@@ -41,14 +42,19 @@ public class LasParserTransformer implements Transformer<Buffer, LasStreamEvent>
   private final AsyncFile chunkFile;
 
   /**
+   * A reference to the vertx file system.
+   */
+  private final FileSystem fileSystem;
+
+  /**
    * Create a new LasParserTransformer
    * @param vertx A vertx instance used to access the filesystem.
    * @param georocketHome The georocket home directory as defined in the config.
    */
   public LasParserTransformer(Vertx vertx, String georocketHome) {
     lastools = new Lastools(vertx, georocketHome);
-    chunkFilePath = vertx.fileSystem().createTempFileBlocking("chunk", ".laz");
-    System.out.println("Create a new chunk tmp file at " + chunkFilePath);
+    fileSystem = vertx.fileSystem();
+    chunkFilePath = fileSystem.createTempFileBlocking("chunk", ".laz");
     OpenOptions openOptions = new OpenOptions().setWrite(true);
     chunkFile = vertx.fileSystem().openBlocking(chunkFilePath, openOptions);
   }
@@ -66,6 +72,7 @@ public class LasParserTransformer implements Transformer<Buffer, LasStreamEvent>
         chunkFile.end(writeEndHandler -> { // ... close the chunk file. When it is closed ...
             lastools.lasinfo(chunkFilePath, lasInfoHandler -> { // ... inform lastools to get the infos.
                 handler.handle(lasInfoHandler.map(LasStreamEvent::new));
+                fileSystem.delete(chunkFilePath, v2 -> { /* ignore */ });
             });
         });
     });
