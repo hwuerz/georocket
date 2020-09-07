@@ -65,10 +65,13 @@ public class Lastools {
    * @return The absolute path to the binary if <code>georocketHome</code> was absolute.
    */
   private static String getAbsolutePathToExecutable(String georocketHome, Function<String, String> binarySelector) {
+    // TODO There has to be another solution.
     String[] possibleLasHomeDirs = new String[] {
             georocketHome + "/LAStools", // Run the built version.
             georocketHome + "/../georocket/georocket-common/LAStools", // Run from an extension in the IDE.
-            georocketHome + "/../georocket-common/LAStools" // Run from another package.
+            georocketHome + "/georocket/georocket/georocket-common/LAStools", // Run from an extension in the IDE.
+            georocketHome + "/../georocket-common/LAStools", // Run from another package.
+            "/opt/LAStools" // System wide installation
     };
     if (georocketHome == null) {
       log.error("Lastools is called with null as georocket home ", new RuntimeException());

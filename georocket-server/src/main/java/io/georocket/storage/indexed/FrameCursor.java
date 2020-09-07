@@ -42,7 +42,7 @@ public class FrameCursor implements StoreCursor {
    * The search query
    */
   private String search;
-  
+
   /**
    * The path where to perform the search (may be null)
    */
@@ -58,7 +58,7 @@ public class FrameCursor implements StoreCursor {
    * The total number of items the store has to offer.
    * If {@link #size} > totalHits then this frame cursor will
    * never load all items of the store.
-   * 
+   *
    * <b>INV: <code>SIZE <= totalHits</code></b>
    */
   private long totalHits;
@@ -115,9 +115,9 @@ public class FrameCursor implements StoreCursor {
         queryMsg.put("path", path);
       }
     }
-    
+
     vertx.eventBus().<JsonObject>send(AddressConstants.INDEXER_QUERY, queryMsg, ar -> {
-      if (ar.failed()) {
+      if (ar.failed() || ar.result().body() == null) {
         handler.handle(Future.failedFuture(ar.cause()));
       } else {
         handleResponse(ar.result().body());

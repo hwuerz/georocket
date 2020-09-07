@@ -69,7 +69,7 @@ import static io.georocket.util.MimeTypeUtils.belongsTo;
  */
 public class ImporterVerticle extends AbstractVerticle {
   private static Logger log = LoggerFactory.getLogger(ImporterVerticle.class);
-  
+
   private static final int MAX_RETRIES = 5;
   private static final int RETRY_INTERVAL = 1000;
   private static final int MAX_PARALLEL_IMPORTS = 1;
@@ -78,7 +78,7 @@ public class ImporterVerticle extends AbstractVerticle {
    * If {@link ConfigConstants#IMPORT_POINT_CLOUD_CHUNK_SIZE} is not defined, this fallback chunk size will be used.
    */
   private static final int DEFAULT_IMPORT_POINT_CLOUD_CHUNK_SIZE = 100000;
-  
+
   protected RxStore store;
   private String incoming;
   private boolean paused;
@@ -94,7 +94,7 @@ public class ImporterVerticle extends AbstractVerticle {
     incoming = storagePath + "/incoming";
     String georocketHome = vertx.getOrCreateContext().config().getString(ConfigConstants.HOME);
     lastools = new Lastools(vertx.getDelegate(), georocketHome);
-    
+
     vertx.eventBus().<JsonObject>localConsumer(AddressConstants.IMPORTER_IMPORT)
       .toObservable()
       .onBackpressureBuffer() // unlimited buffer
@@ -132,7 +132,12 @@ public class ImporterVerticle extends AbstractVerticle {
   protected Completable onImport(Message<JsonObject> msg) {
     JsonObject body = msg.body();
     String filename = body.getString("filename");
-    String filepath = getIncomingFilePath(filename);
+    String filepath;
+    try {
+      filepath = getIncomingFilePath(filename);
+    } catch (Exception e) {
+      return Completable.error(e);
+    }
     String layer = body.getString("layer", "/");
     String contentType = body.getString("contentType");
     String correlationId = body.getString("correlationId");
@@ -303,7 +308,7 @@ public class ImporterVerticle extends AbstractVerticle {
               .toSingleDefault(1);
         });
   }
-  
+
   /**
    * Imports a JSON file from the given input stream into the store
    * @param f the JSON file to read
@@ -491,7 +496,7 @@ public class ImporterVerticle extends AbstractVerticle {
       String layer, IndexMeta indexMeta, ReadStream<Buffer> f, AtomicInteger processing) {
     // pause stream while chunk is being written
     f.pause();
-    
+
     // count number of chunks being written
     processing.incrementAndGet();
 
@@ -504,7 +509,7 @@ public class ImporterVerticle extends AbstractVerticle {
           }
         });
   }
-  
+
   /**
    * Add a chunk to the store. Retry operation several times before failing.
    * @param chunk the chunk to add

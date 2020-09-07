@@ -73,7 +73,7 @@ import static io.georocket.util.ThrowableHelper.throwableToMessage;
  */
 public class IndexerVerticle extends AbstractVerticle {
   private static Logger log = LoggerFactory.getLogger(IndexerVerticle.class);
-  
+
   private static final long BUFFER_TIMESPAN = 5000;
   private static final int MAX_RETRIES = 5;
   private static final int RETRY_INTERVAL = 1000;
@@ -82,7 +82,7 @@ public class IndexerVerticle extends AbstractVerticle {
    * Elasticsearch index
    */
   private static final String INDEX_NAME = "georocket";
-  
+
   /**
    * Type of documents stored in the Elasticsearch index
    */
@@ -92,7 +92,7 @@ public class IndexerVerticle extends AbstractVerticle {
    * The Elasticsearch client
    */
   private ElasticsearchClient client;
-  
+
   /**
    * The GeoRocket store
    */
@@ -131,12 +131,12 @@ public class IndexerVerticle extends AbstractVerticle {
    * {@link MetaIndexerFactory} objects
    */
   private List<MetaIndexerFactory> metaIndexerFactories;
-  
+
   /**
    * The maximum number of chunks to index in one bulk
    */
   private int maxBulkSize;
-  
+
   /**
    * The maximum number of bulk processes to run in parallel. Also affects the
    * number of parallel bulk inserts into Elasticsearch.
@@ -156,7 +156,7 @@ public class IndexerVerticle extends AbstractVerticle {
    * Set during start() because the vertx config is not available in an observable retry..
    */
   private String georocketHome;
-  
+
   /**
    * The number of add message currently queued due to backpressure
    * (see {@link #onAdd(List)})
@@ -167,7 +167,7 @@ public class IndexerVerticle extends AbstractVerticle {
    * {@code true} if the importer is currently paused due to backpressure
    */
   private boolean pauseImport;
-  
+
   @Override
   public void start(Future<Void> startFuture) {
     log.info("Launching indexer ...");
@@ -179,7 +179,7 @@ public class IndexerVerticle extends AbstractVerticle {
     maxQueuedChunks = config().getInteger(ConfigConstants.INDEX_MAX_QUEUED_CHUNKS,
             ConfigConstants.DEFAULT_INDEX_MAX_QUEUED_CHUNKS);
     georocketHome = config().getString(ConfigConstants.HOME, ".");
-    
+
     // load and copy all indexer factories now and not lazily to avoid
     // concurrent modifications to the service loader's internal cache
     indexerFactories = ImmutableList.copyOf(FilteredServiceLoader.load(IndexerFactory.class));
@@ -195,12 +195,12 @@ public class IndexerVerticle extends AbstractVerticle {
     metaIndexerFactories = ImmutableList.copyOf(Seq.seq(indexerFactories)
       .filter(f -> f instanceof MetaIndexerFactory)
       .cast(MetaIndexerFactory.class));
-    
+
     store = new RxStore(StoreFactory.createStore(getVertx()));
 
     queryCompiler = createQueryCompiler();
     queryCompiler.setQueryCompilers(indexerFactories);
-    
+
     new ElasticsearchClientFactory(vertx).createElasticsearchClient(INDEX_NAME)
       .doOnSuccess(es -> {
         client = es;
@@ -222,7 +222,7 @@ public class IndexerVerticle extends AbstractVerticle {
       throw new RuntimeException("Could not create a DefaultQueryCompiler", e);
     }
   }
-  
+
   @Override
   public void stop() {
     client.close();
@@ -244,7 +244,7 @@ public class IndexerVerticle extends AbstractVerticle {
   private Func1<Observable<? extends Throwable>, Observable<Long>> makeRetry() {
     return RxUtils.makeRetry(MAX_RETRIES, RETRY_INTERVAL, log);
   }
-  
+
   /**
    * Register consumer for add messages
    */
@@ -253,6 +253,7 @@ public class IndexerVerticle extends AbstractVerticle {
       .toObservable()
       .doOnNext(v -> {
         queuedAddMessages++;
+        System.out.println("Current queue " + queuedAddMessages);
 
         // pause import if necessary
         if (queuedAddMessages > maxQueuedChunks && !pauseImport) {
@@ -290,7 +291,7 @@ public class IndexerVerticle extends AbstractVerticle {
         log.fatal("Could not index document", err);
       });
   }
-  
+
   /**
    * Register consumer for delete messages
    */
@@ -306,7 +307,7 @@ public class IndexerVerticle extends AbstractVerticle {
         });
       });
   }
-  
+
   /**
    * Register consumer for queries
    */
@@ -322,7 +323,7 @@ public class IndexerVerticle extends AbstractVerticle {
         });
       });
   }
-  
+
   private Completable ensureMapping() {
     // merge mappings from all indexers
     Map<String, Object> mappings = new HashMap<>();
@@ -333,7 +334,7 @@ public class IndexerVerticle extends AbstractVerticle {
 
     return client.putMapping(TYPE_NAME, new JsonObject(mappings)).toCompletable();
   }
-  
+
   /**
    * Insert multiple Elasticsearch documents into the index. Perform a
    * bulk request. This method replies to all messages if the bulk request
@@ -344,7 +345,7 @@ public class IndexerVerticle extends AbstractVerticle {
    */
   private Completable insertDocuments(List<Tuple3<String, JsonObject, Message<JsonObject>>> documents) {
     long startTimeStamp = System.currentTimeMillis();
-    
+
     List<String> chunkPaths = Seq.seq(documents)
       .map(Tuple3::v1)
       .toList();
@@ -362,7 +363,7 @@ public class IndexerVerticle extends AbstractVerticle {
     List<Message<JsonObject>> messages = Seq.seq(documents)
       .map(Tuple3::v3)
       .toList();
-    
+
     return client.bulkInsert(TYPE_NAME, docsToInsert).flatMapCompletable(bres -> {
       JsonArray items = bres.getJsonArray("items");
       for (int i = 0; i < items.size(); ++i) {
@@ -375,7 +376,7 @@ public class IndexerVerticle extends AbstractVerticle {
           msg.reply(null);
         }
       }
-      
+
       long stopTimeStamp = System.currentTimeMillis();
       String errorMessage = client.bulkResponseGetErrorMessage(bres);
       if (errorMessage != null) {
@@ -508,7 +509,7 @@ public class IndexerVerticle extends AbstractVerticle {
       .flatMapObservable(chunk -> {
         List<? extends IndexerFactory> factories;
         Transformer<Buffer, ? extends StreamEvent> parserTransformer;
-        
+
         // select indexers and parser depending on the mime type
         String mimeType = chunkMeta.getMimeType();
         if (belongsTo(mimeType, "application", "xml") ||
@@ -528,7 +529,7 @@ public class IndexerVerticle extends AbstractVerticle {
               "Unexpected mime type '%s' while trying to index "
               + "chunk '%s'", mimeType, path)));
         }
-        
+
         // call meta indexers
         Map<String, Object> metaResults = new HashMap<>();
         for (MetaIndexerFactory metaIndexerFactory : metaIndexerFactories) {
@@ -546,7 +547,7 @@ public class IndexerVerticle extends AbstractVerticle {
       }))
       .retryWhen(makeRetry());
   }
-  
+
   /**
    * Convert a chunk to a Elasticsearch document
    * @param chunk the chunk to convert
@@ -573,7 +574,7 @@ public class IndexerVerticle extends AbstractVerticle {
       }
       indexers.add(i);
     });
-    
+
     return RxHelper.toObservable(chunk)
       .compose(parserTransformer)
       .doOnNext(e -> indexers.forEach(i -> i.onEvent(e)))
@@ -613,7 +614,7 @@ public class IndexerVerticle extends AbstractVerticle {
    * the chunks to be indexed
    * @return a Completable that completes when the operation has finished
    */
-  private Completable onAdd(List<Message<JsonObject>> messages) {
+  protected Completable onAdd(List<Message<JsonObject>> messages) {
     startIndexerTasks(messages);
     return Observable.from(messages)
       .flatMap(msg -> {
@@ -684,7 +685,7 @@ public class IndexerVerticle extends AbstractVerticle {
     String scrollId = body.getString("scrollId");
     int pageSize = body.getInteger("size", 100);
     String timeout = "1m"; // one minute
-    
+
     JsonObject parameters = new JsonObject()
       .put("size", pageSize);
 

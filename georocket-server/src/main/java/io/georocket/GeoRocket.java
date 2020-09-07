@@ -131,10 +131,12 @@ public class GeoRocket extends AbstractVerticle {
   protected Single<HttpServer> deployHttpServer() {
     String host = config().getString(ConfigConstants.HOST, ConfigConstants.DEFAULT_HOST);
     int port = config().getInteger(ConfigConstants.PORT, ConfigConstants.DEFAULT_PORT);
+    System.out.println("Port " + port);
 
     try {
       Router router = createRouter();
       HttpServerOptions serverOptions = createHttpServerOptions();
+      serverOptions.setIdleTimeout(60*10);
       HttpServer server = vertx.createHttpServer(serverOptions);
       ObservableFuture<HttpServer> observable = RxHelper.observableFuture();
       server.requestHandler(router::accept).listen(port, host, observable.toHandler());

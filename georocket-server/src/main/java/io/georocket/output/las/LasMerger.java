@@ -91,6 +91,7 @@ public class LasMerger implements Merger<LasChunkMeta> {
                   try {
                     Files.write(new File(tmpFile.result()).toPath(), decoded);
                     chunkFiles.add(tmpFile.result());
+                    log.info("Received a chunk to the GET response");
                     handler.handle(Future.succeededFuture());
                   } catch (IOException e) {
                     log.error("Could not write LAS chunk to local file", e);
@@ -103,6 +104,13 @@ public class LasMerger implements Merger<LasChunkMeta> {
               });
             });
 
+//    out.write(Buffer.buffer("x"), dummyHandler -> {
+//      if (dummyHandler.failed()) {
+//        log.error("x could not be written ", dummyHandler.cause());
+//      } else {
+//        log.info("Wrote x");
+//      }
+//    });
     return observableFuture.toCompletable();
   }
 
@@ -117,24 +125,55 @@ public class LasMerger implements Merger<LasChunkMeta> {
       String chunkFileList = String.join("\n", chunkFiles);
       vertx.fileSystem().writeFileBlocking(listOfFiles, Buffer.buffer(chunkFileList));
 
+      log.info("Got all chunks for the GET request. " + chunkFiles.size() + " in total. Start merging.");
+
       Path outputFile = Files.createTempFile("mergedChunk", ".laz");
       lastools.lasmerge(listOfFiles, outputFile.toAbsolutePath().toString(), result -> {
         if (result.succeeded()) {
-          vertx.fileSystem().open(outputFile.toString(), new OpenOptions(), asyncResult -> {
+          log.info("Merging finished. Deliver file. " + outputFile.toString());
+
+          vertx.fileSystem().open(outputFile.toString(), new OpenOptions().setDeleteOnClose(true), asyncResult -> {
             if (asyncResult.succeeded()) {
               ReadStream<Buffer> responseData = asyncResult.result();
+//              try {
+//                Thread.sleep(30*1000);
+//              } catch (InterruptedException e) {
+//                e.printStackTrace();
+//              }
+//              out.exceptionHandler(outErrorHandler -> {
+//                log.error("Could not write data to response", outErrorHandler);
+//              });
+//              out.write(Buffer.buffer("Kommt das durch???"));
               responseData
                       // Write the merged point cloud to the `out`-WriteStream.
                       // Hint: We cannot use pipe because `out` must not be closed when response data finishes.
                       .handler(buffer -> {
+                        log.info("Write " + buffer.length() + " bytes.");
                         out.write(buffer);
                         if (out.writeQueueFull()) {
+                          log.info("Paused output");
                           responseData.pause();
-                          out.drainHandler(v -> responseData.resume());
+                          out.drainHandler(v -> {
+                            log.info("Resumed output");
+                            responseData.resume();
+                          });
                         }
                       })
-                      .exceptionHandler(cause -> handler.handle(Future.failedFuture(cause)))
-                      .endHandler(v -> handler.handle(Future.succeededFuture()));
+                      .exceptionHandler(cause -> {
+                        log.error("Reading the merged chunk file failed", cause);
+                        vertx.fileSystem().deleteRecursive(chunkDirectory, true, handlerChunkDirectoryDelete -> {
+                          vertx.fileSystem().delete(listOfFiles, handlerListOfFilesDelete -> {
+                            handler.handle(Future.failedFuture(cause));
+                          });
+                        });
+                      })
+                      .endHandler(v -> {
+//                        vertx.fileSystem().deleteRecursive(chunkDirectory, true, handlerChunkDirectoryDelete -> {
+//                          vertx.fileSystem().delete(listOfFiles, handlerListOfFilesDelete -> {
+                            handler.handle(Future.succeededFuture());
+//                          });
+//                        });
+                      });
             } else {
               log.error("Could not open the file with the merged chunks.", new RuntimeException(asyncResult.cause()));
               handler.handle(Future.failedFuture(asyncResult.cause()));
