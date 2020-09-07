@@ -172,8 +172,12 @@ public class LoadBalancingHttpClient {
       } else {
         Buffer buf = Buffer.buffer();
         res.handler(buf::appendBuffer);
-        res.endHandler(v -> handler.handle(Future.failedFuture(
-            new HttpException(code, buf.toString()))));
+        res.endHandler(v -> {
+          String bodyString = body == null ? "null" : body.toString();
+          log.error("Request to " + req.getHost() + req.absoluteURI() + " and body " + bodyString + " failed");
+              handler.handle(Future.failedFuture(
+                  new HttpException(code, buf.toString())));
+        });
       }
     });
 
