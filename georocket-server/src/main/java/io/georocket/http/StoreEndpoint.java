@@ -79,9 +79,9 @@ public class StoreEndpoint implements Endpoint {
    * merged. The client can decide whether to repeat the request to fetch
    * the missing chunks (e.g. with optimistic merging disabled) or not.</p>
    */
-  private static String TRAILER_UNMERGED_CHUNKS = "GeoRocket-Unmerged-Chunks";
+  protected static String TRAILER_UNMERGED_CHUNKS = "GeoRocket-Unmerged-Chunks";
   
-  private Vertx vertx;
+  protected Vertx vertx;
   private RxStore store;
   private String storagePath;
 
@@ -293,7 +293,7 @@ public class StoreEndpoint implements Endpoint {
    * @param request the HTTP request
    * @return {@code true} if optimistic is enabled, {@code false} otherwise
    */
-  private boolean isOptimisticMerging(HttpServerRequest request) {
+  protected boolean isOptimisticMerging(HttpServerRequest request) {
     return BooleanUtils.toBoolean(request.getParam("optimisticMerging"));
   }
 
@@ -302,7 +302,7 @@ public class StoreEndpoint implements Endpoint {
    * @param request the HTTP request
    * @return {@code true} if the client accepts a trailer, {@code false} otherwise
    */
-  private boolean isTrailerAccepted(HttpServerRequest request) {
+  protected boolean isTrailerAccepted(HttpServerRequest request) {
     String te = request.getHeader("TE");
     return (te != null && te.toLowerCase().contains("trailers"));
   }
@@ -311,7 +311,7 @@ public class StoreEndpoint implements Endpoint {
    * Retrieve all chunks matching the specified query and path
    * @param context the routing context
    */
-  private void getChunks(RoutingContext context) {
+  protected void getChunks(RoutingContext context) {
     HttpServerRequest request = context.request();
     HttpServerResponse response = context.response();
 

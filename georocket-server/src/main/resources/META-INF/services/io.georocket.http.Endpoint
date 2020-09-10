@@ -1,3 +1,5 @@
 io.georocket.http.GeneralEndpoint
-io.georocket.http.StoreEndpoint
+# TODO move ths definition in the extension
+#io.georocket.http.StoreEndpoint
+io.georocket.faas.main.StoreEndpointCutOff
 io.georocket.http.TaskEndpoint
