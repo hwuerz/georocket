@@ -22,6 +22,8 @@ import io.georocket.storage.ChunkReadStream;
 import io.georocket.storage.indexed.IndexedStore;
 import io.georocket.util.PathUtils;
 import io.georocket.util.io.DelegateChunkReadStream;
+import io.vertx.circuitbreaker.CircuitBreaker;
+import io.vertx.circuitbreaker.CircuitBreakerOptions;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -52,6 +54,7 @@ public class S3Store extends IndexedStore {
   private final boolean forceSignatureV2;
   private final int requestExpirySeconds;
   private final HttpClient client;
+  private final CircuitBreaker breaker;
 
   /**
    * Constructs a new store
@@ -88,7 +91,19 @@ public class S3Store extends IndexedStore {
     HttpClientOptions options = new HttpClientOptions();
     options.setDefaultHost(host);
     options.setDefaultPort(port);
+    options.setConnectTimeout(60000) // ms
+            .setIdleTimeout(60); // sec
     client = vertx.createHttpClient(options);
+
+    breaker = CircuitBreaker.create("my-circuit-breaker", vertx,
+            new CircuitBreakerOptions()
+                    .setMaxRetries(5)
+                    .setMaxFailures(Integer.MAX_VALUE) // We use it for retries. Not for direct failures.
+                    .setTimeout(60000) // consider a failure if the operation does not succeed in time
+                    .setFallbackOnFailure(true) // do we call the fallback on failure
+                    .setResetTimeout(10000) // time spent in open state before attempting to re-try
+    ).retryPolicy(retryCount -> 10000L);
+
   }
 
   /**
@@ -153,43 +168,58 @@ public class S3Store extends IndexedStore {
     String filename = PathUtils.join(path, id);
     String key = PathUtils.removeLeadingSlash(filename);
 
-    vertx.<URL>executeBlocking(f -> {
-      f.complete(generatePresignedUrl(key, HttpMethod.PUT));
-    }, ar -> {
+
+    breaker.<String>execute(future -> {
+
+      vertx.<URL>executeBlocking(f -> {
+        f.complete(generatePresignedUrl(key, HttpMethod.PUT));
+      }, ar -> {
+        if (ar.failed()) {
+//          handler.handle(Future.failedFuture(ar.cause()));
+          future.fail(ar.cause());
+          return;
+        }
+
+        URL u = ar.result();
+        log.debug("PUT " + u);
+
+        Buffer chunkBuf = Buffer.buffer(chunk);
+        HttpClientRequest request = client.put(u.getFile());
+
+        request.putHeader("Host", u.getHost());
+        request.putHeader("Content-Length", String.valueOf(chunkBuf.length()));
+
+        request.exceptionHandler(t -> {
+//          handler.handle(Future.failedFuture(t));
+          future.fail(t);
+        });
+
+        request.handler(response -> {
+          Buffer errorBody = Buffer.buffer();
+          if (response.statusCode() != 200) {
+            response.handler(errorBody::appendBuffer);
+          }
+          response.endHandler(v -> {
+            if (response.statusCode() == 200) {
+//              handler.handle(Future.succeededFuture(filename));
+              future.complete(filename);
+            } else {
+              log.error(errorBody);
+//              handler.handle(Future.failedFuture(response.statusMessage()));
+              future.fail(response.statusMessage());
+            }
+          });
+        });
+
+        request.end(chunkBuf);
+      });
+
+    }).setHandler(ar -> {
       if (ar.failed()) {
         handler.handle(Future.failedFuture(ar.cause()));
         return;
       }
-
-      URL u = ar.result();
-      log.debug("PUT " + u);
-
-      Buffer chunkBuf = Buffer.buffer(chunk);
-      HttpClientRequest request = client.put(u.getFile());
-
-      request.putHeader("Host", u.getHost());
-      request.putHeader("Content-Length", String.valueOf(chunkBuf.length()));
-
-      request.exceptionHandler(t -> {
-        handler.handle(Future.failedFuture(t));
-      });
-
-      request.handler(response -> {
-        Buffer errorBody = Buffer.buffer();
-        if (response.statusCode() != 200) {
-          response.handler(errorBody::appendBuffer);
-        }
-        response.endHandler(v -> {
-          if (response.statusCode() == 200) {
-            handler.handle(Future.succeededFuture(filename));
-          } else {
-            log.error(errorBody);
-            handler.handle(Future.failedFuture(response.statusMessage()));
-          }
-        });
-      });
-
-      request.end(chunkBuf);
+      handler.handle(Future.succeededFuture(ar.result()));
     });
   }
 
