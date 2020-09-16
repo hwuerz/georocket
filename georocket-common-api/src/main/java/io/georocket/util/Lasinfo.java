@@ -101,8 +101,8 @@ public class Lasinfo {
    */
   public Lasinfo(String pathToInfoFile) {
     // Regex patterns. They are applied on each line. If they match, the infos are copied.
-    Pattern boundingBoxMinPattern = Pattern.compile("^\\s+min x y z: \\s+(\\d+\\.?\\d*) (\\d+\\.?\\d*) (\\d+\\.?\\d*)$");
-    Pattern boundingBoxMaxPattern = Pattern.compile("^\\s+max x y z: \\s+(\\d+\\.?\\d*) (\\d+\\.?\\d*) (\\d+\\.?\\d*)$");
+    Pattern boundingBoxMinPattern = Pattern.compile("^\\s+min x y z: \\s+(-?\\d+\\.?\\d*) (-?\\d+\\.?\\d*) (-?\\d+\\.?\\d*)$");
+    Pattern boundingBoxMaxPattern = Pattern.compile("^\\s+max x y z: \\s+(-?\\d+\\.?\\d*) (-?\\d+\\.?\\d*) (-?\\d+\\.?\\d*)$");
     Pattern crsPattern = Pattern.compile("^\\s+.key 3072.*value_offset (\\d+) - ProjectedCSTypeGeoKey: (.+)$");
     Pattern warningPattern = Pattern.compile("^\\s*WARNING: (.+)$");
     Pattern numberOfPointsPattern = Pattern.compile("^\\s+number of point records:\\s+(\\d+)$");
@@ -137,6 +137,13 @@ public class Lasinfo {
           }
         }
       }
+
+      if (minX.value == null || maxX.value == null || minY.value == null || maxY.value == null || minZ.value == null || maxZ.value == null) {
+        log.error(new RuntimeException("Lasinfo could not extract bounding box from file " +
+                pathToInfoFile + "\nContent:\n" +
+                Files.readString(new File(pathToInfoFile).toPath())));
+      }
+
     } catch (IOException e) {
       log.error("Could not read lasinfo output file at " + pathToInfoFile, e);
     }
