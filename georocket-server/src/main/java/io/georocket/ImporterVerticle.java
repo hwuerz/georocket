@@ -436,7 +436,7 @@ public class ImporterVerticle extends AbstractVerticle {
                   log.error("Could not store chunk", e);
                   return Single.error(e);
                 }
-              })
+              }, false, MAX_PARALLEL_ADDS)
               .doOnCompleted(() -> {
                 // Clean up: Delete tmp file and chunk directory.
                 try {

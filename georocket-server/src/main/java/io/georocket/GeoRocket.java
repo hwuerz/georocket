@@ -136,7 +136,7 @@ public class GeoRocket extends AbstractVerticle {
     try {
       Router router = createRouter();
       HttpServerOptions serverOptions = createHttpServerOptions();
-      serverOptions.setIdleTimeout(60*10);
+      serverOptions.setIdleTimeout(60 * 10);
       HttpServer server = vertx.createHttpServer(serverOptions);
       ObservableFuture<HttpServer> observable = RxHelper.observableFuture();
       server.requestHandler(router::accept).listen(port, host, observable.toHandler());
