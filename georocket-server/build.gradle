@@ -81,6 +81,8 @@ dependencies {
     compile 'org.mongodb:mongodb-driver-async:3.6.1'
     compile 'org.xerial.snappy:snappy-java:1.1.4'
 
+    compile 'io.minio:minio:7.0.1'
+
     // necessary for ALPN / HTTP/2
     runtime "io.netty:netty-tcnative-boringssl-static:2.0.7.Final"
 
